@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -175,6 +175,7 @@ def log_mel_spectrogram(
         audio = audio.to(device)
     if padding > 0:
         audio = F.pad(audio, (0, padding))
+
     window = torch.hann_window(N_FFT).to(audio.device)
     stft = torch.stft(audio,
                       N_FFT,
@@ -189,6 +190,7 @@ def log_mel_spectrogram(
     log_spec = torch.clamp(mel_spec, min=1e-10).log10()
     log_spec = torch.maximum(log_spec, log_spec.max() - 8.0)
     log_spec = (log_spec + 4.0) / 4.0
+
     if return_duration:
         return log_spec, duration
     else:
@@ -214,7 +216,7 @@ def store_transcripts(filename: Pathlike, texts: Iterable[Tuple[str, str,
             print(f"{cut_id}:\thyp={hyp}", file=f)
 
 
-def write_error_stats(                                              # noqa: C901
+def write_error_stats(
     f: TextIO,
     test_set_name: str,
     results: List[Tuple[str, str]],
