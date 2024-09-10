@@ -14,12 +14,12 @@ from websockets.exceptions import ConnectionClosed
 from whisper_live.vad import VoiceActivityDetector
 from whisper_live.transcriber import WhisperModel
 try:
-    from whisper_live.transcriber_tensorrt import WhisperTRTLLM
-except Exception:
+    from whisper_live.transcriber_tensorrt import WhisperTRTLLM, decode_wav_file
+except Exception as e:
+    print('Failed to import  transcriber_tesnorrt', e)
     pass
 
 logging.basicConfig(level=logging.INFO)
-
 
 class ClientManager:
     def __init__(self, max_clients=4, max_connection_time=600):
@@ -172,6 +172,7 @@ class TranscriptionServer:
                 logging.info("Running TensorRT backend.")
             except Exception as e:
                 logging.error(f"TensorRT-LLM not supported: {e}")
+                exit(1)
                 self.client_uid = options["uid"]
                 websocket.send(json.dumps({
                     "uid": self.client_uid,
@@ -628,10 +629,6 @@ class ServeClientTensorRT(ServeClientBase):
         self.transcriber = WhisperTRTLLM(
             model,
             assets_dir="assets",
-            device="cuda",
-            is_multilingual=multilingual,
-            language=self.language,
-            task=self.task
         )
         if warmup:
             self.warmup()
@@ -644,7 +641,7 @@ class ServeClientTensorRT(ServeClientBase):
             warmup_steps (int): Number of steps to warm up the model for.
         """
         logging.info("[INFO:] Warming up TensorRT engine..")
-        mel, _ = self.transcriber.log_mel_spectrogram("assets/jfk.flac")
+        mel = self.transcriber.log_mel_spectrogram_on_model("assets/jfk.flac")
         for i in range(warmup_steps):
             self.transcriber.transcribe(mel)
 
@@ -683,7 +680,7 @@ class ServeClientTensorRT(ServeClientBase):
         if ServeClientTensorRT.SINGLE_MODEL:
             ServeClientTensorRT.SINGLE_MODEL_LOCK.acquire()
         logging.info(f"[WhisperTensorRT:] Processing audio with duration: {input_bytes.shape[0] / self.RATE}")
-        mel, duration = self.transcriber.log_mel_spectrogram(input_bytes)
+        mel, duration = self.transcriber.log_mel_spectrogram_on_model(input_bytes, return_duration=True)
         last_segment = self.transcriber.transcribe(
             mel,
             text_prefix=f"<|startoftranscript|><|{self.language}|><|{self.task}|><|notimestamps|>"
@@ -808,6 +805,7 @@ class ServeClientFasterWhisper(ServeClientBase):
 
         self.use_vad = use_vad
 
+        print('starting thread')
         # threading
         self.trans_thread = threading.Thread(target=self.speech_to_text)
         self.trans_thread.start()
